@@ -17,7 +17,7 @@ GEMINI_API_KEY = "AIzaSyAgNUZjyxSMDBVizQFR_d7VK29hQUSzkn0"
 
 genai.configure(api_key=GEMINI_API_KEY)
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
-model = genai.GenerativeModel('models/gemini-1.5-flash')
+model = genai.GenerativeModel('gemini-1.5-flash')
 app = Flask(__name__)
 
 @app.route("/", methods=['GET', 'POST'])
