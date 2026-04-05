@@ -15,10 +15,16 @@ SUPABASE_URL = "https://ijfowsrtiqifdbcwgllt.supabase.co"
 SUPABASE_KEY = "sb_secret_tHlIGiZpqtuOqV5mWHR3lg__QR-GcpW"
 GEMINI_API_KEY = "AIzaSyAgNUZjyxSMDBVizQFR_d7VK29hQUSzkn0"
 
-genai.configure(api_key=GEMINI_API_KEY)
-supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
-model = genai.GenerativeModel('gemini-1.5-flash')
-app = Flask(__name__)
+try:
+    genai.configure(api_key=GEMINI_API_KEY)
+    # We explicitly tell it to use the stable 'v1' version
+    model = genai.GenerativeModel(
+        model_name='gemini-1.5-flash',
+        generation_config={"candidate_count": 1}
+    )
+    print("Model initialized successfully on stable v1 endpoint", flush=True)
+except Exception as e:
+    print(f"Model Init Error: {e}", flush=True)
 
 @app.route("/", methods=['GET', 'POST'])
 @app.route("/whatsapp", methods=['GET', 'POST'])
