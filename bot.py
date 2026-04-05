@@ -11,6 +11,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # --- 1. INITIALIZE FLASK FIRST ---
+# This must happen before any @app.route calls
 app = Flask(__name__) 
 
 # --- 2. CONFIGURATION ---
@@ -21,7 +22,7 @@ GEMINI_API_KEY = "AIzaSyAgNUZjyxSMDBVizQFR_d7VK29hQUSzkn0"
 # --- 3. MODEL & SERVICES ---
 try:
     genai.configure(api_key=GEMINI_API_KEY)
-    # Using 'gemini-1.5-flash' with stable config
+    # Using the stable name recognized by the updated library
     model = genai.GenerativeModel(
         model_name='gemini-1.5-flash',
         generation_config={"candidate_count": 1}
@@ -32,7 +33,7 @@ except Exception as e:
 
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# --- 4. THE ROUTES (Now 'app' is defined!) ---
+# --- 4. THE ROUTES ---
 @app.route("/", methods=['GET', 'POST'])
 @app.route("/whatsapp", methods=['GET', 'POST'])
 def whatsapp_bot():
@@ -45,6 +46,7 @@ def whatsapp_bot():
         return "Medical AI Server is LIVE!", 200
 
     try:
+        # A. Get Response from Gemini AI
         print("Consulting Gemini AI...", flush=True)
         system_instruction = "You are a professional medical assistant. Provide concise first-aid advice."
         prompt = f"{system_instruction}\n\nUser Question: {user_query}"
@@ -53,11 +55,13 @@ def whatsapp_bot():
         ai_text = gemini_response.text
         print(f"AI Response Generated.", flush=True)
 
+        # B. Convert Text to Audio (gTTS)
         print("Generating Voice Note...", flush=True)
         audio_filename = f"{uuid.uuid4()}.mp3"
         tts = gTTS(text=ai_text, lang='en', slow=False) 
         tts.save(audio_filename)
 
+        # C. Upload to Supabase Storage
         print("Uploading to Supabase...", flush=True)
         with open(audio_filename, 'rb') as f:
             supabase.storage.from_('medical-voice').upload(
@@ -66,8 +70,10 @@ def whatsapp_bot():
                 file_options={"content-type": "audio/mpeg", "upsert": "true"}
             )
         
+        # D. Get Public URL
         voice_url = supabase.storage.from_('medical-voice').get_public_url(audio_filename)
 
+        # E. Twilio Response Construction
         twiml_resp = MessagingResponse()
         timestamp = int(time.time())
         final_voice_url = f"{voice_url}?t={timestamp}"
@@ -77,9 +83,11 @@ def whatsapp_bot():
         
         print(f"Success! Sending response to Twilio.", flush=True)
         
+        # Build the final XML response
         response = make_response(str(twiml_resp))
         response.headers['Content-Type'] = 'text/xml'
         
+        # Clean up local storage
         if os.path.exists(audio_filename):
             os.remove(audio_filename)
             
@@ -91,6 +99,7 @@ def whatsapp_bot():
         error_resp.message("I'm sorry, I encountered a technical error. Please try again.")
         return make_response(str(error_resp))
 
+# --- 5. START THE SERVER ---
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
