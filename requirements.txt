@@ -1,6 +1,6 @@
 flask
-google-generativeai
 twilio
+gtts
+google-generativeai>=0.7.2
 supabase
-gTTS
 python-dotenv
