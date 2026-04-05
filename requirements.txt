@@ -1,0 +1,6 @@
+flask
+google-generativeai
+twilio
+supabase
+gTTS
+python-dotenv
