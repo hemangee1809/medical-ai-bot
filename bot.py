@@ -8,7 +8,6 @@ import google.generativeai as genai
 from supabase import create_client
 from dotenv import load_dotenv
 
-# Load local .env if it exists
 load_dotenv()
 
 # --- 1. CONFIGURATION ---
@@ -16,14 +15,12 @@ SUPABASE_URL = "https://ijfowsrtiqifdbcwgllt.supabase.co"
 SUPABASE_KEY = "sb_secret_tHlIGiZpqtuOqV5mWHR3lg__QR-GcpW"
 GEMINI_API_KEY = "AIzaSyAgNUZjyxSMDBVizQFR_d7VK29hQUSzkn0"
 
-# Initialize External Services
 genai.configure(api_key=GEMINI_API_KEY)
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 model = genai.GenerativeModel('gemini-1.5-flash')
 
 app = Flask(__name__)
 
-# --- 2. THE MAIN BOT ROUTE ---
 @app.route("/", methods=['GET', 'POST'])
 @app.route("/whatsapp", methods=['GET', 'POST'])
 def whatsapp_bot():
@@ -33,10 +30,9 @@ def whatsapp_bot():
     print(f"User Message: '{user_query}'", flush=True)
 
     if not user_query:
-        return "Medical AI Server is LIVE and waiting for WhatsApp messages!", 200
+        return "Medical AI Server is LIVE!", 200
 
     try:
-        # A. Get Response from Gemini AI
         print("Consulting Gemini AI...", flush=True)
         system_instruction = "You are a professional medical assistant. Provide concise first-aid advice."
         prompt = f"{system_instruction}\n\nUser Question: {user_query}"
@@ -45,13 +41,11 @@ def whatsapp_bot():
         ai_text = gemini_response.text
         print(f"AI Response Generated.", flush=True)
 
-        # B. Convert Text to Audio (gTTS)
         print("Generating Voice Note...", flush=True)
         audio_filename = f"{uuid.uuid4()}.mp3"
         tts = gTTS(text=ai_text, lang='en', slow=False) 
         tts.save(audio_filename)
 
-        # C. Upload to Supabase Storage
         print("Uploading to Supabase...", flush=True)
         with open(audio_filename, 'rb') as f:
             supabase.storage.from_('medical-voice').upload(
@@ -60,10 +54,8 @@ def whatsapp_bot():
                 file_options={"content-type": "audio/mpeg", "upsert": "true"}
             )
         
-        # D. Get Public URL
         voice_url = supabase.storage.from_('medical-voice').get_public_url(audio_filename)
 
-        # E. Twilio Response Construction
         twiml_resp = MessagingResponse()
         timestamp = int(time.time())
         final_voice_url = f"{voice_url}?t={timestamp}"
