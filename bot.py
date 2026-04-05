@@ -55,12 +55,12 @@ def whatsapp_bot():
         print("Generating Voice Note...")
         audio_filename = f"{uuid.uuid4()}.mp3"
         tts = gTTS(text=ai_text, lang='en', slow=False) 
-        tts.save(audio_filename)
+        #tts.save(audio_filename)
 
         # C. Upload to Supabase Storage
         print("Uploading to Supabase...")
         with open(audio_filename, 'rb') as f:
-            supabase.storage.from_('medical-voice').upload(
+           # supabase.storage.from_('medical-voice').upload(
                 path=audio_filename, 
                 file=f,
                 file_options={
@@ -73,7 +73,7 @@ def whatsapp_bot():
         voice_url = supabase.storage.from_('medical-voice').get_public_url(audio_filename)
 
         # E. Twilio Response Construction
-        twiml_resp = MessagingResponse()
+        #twiml_resp = MessagingResponse()
         
         # Add a timestamp to bypass Twilio media caching
         timestamp = int(time.time())
