@@ -1,5 +1,3 @@
-from dotenv import load_dotenv
-load_dotenv()  # This loads the variables from the .env file
 import os
 import time
 import uuid
@@ -8,59 +6,61 @@ from twilio.twiml.messaging_response import MessagingResponse
 from gtts import gTTS
 import google.generativeai as genai
 from supabase import create_client
+from dotenv import load_dotenv
 
-# --- 1. CONFIGURATION (Grabbing from Render Env Variables) ---
-# This ensures 
-# your keys are secure and not hardcoded
-SUPABASE_URL = ("https://ijfowsrtiqifdbcwgllt.supabase.co")
-SUPABASE_KEY = ("sb_secret_tHlIGiZpqtuOqV5mWHR3lg__QR-GcpW")
-GEMINI_API_KEY =("AIzaSyAgNUZjyxSMDBVizQFR_d7VK29hQUSzkn0")
+# Load local .env if it exists
+load_dotenv()
+
+# --- 1. CONFIGURATION ---
+# Replace these with your actual keys if not using Render Env Variables
+SUPABASE_URL = "https://ijfowsrtiqifdbcwgllt.supabase.co"
+SUPABASE_KEY = "sb_secret_tHlIGiZpqtuOqV5mWHR3lg__QR-GcpW"
+GEMINI_API_KEY = "AIzaSyAgNUZjyxSMDBVizQFR_d7VK29hQUSzkn0"
 
 # Initialize External Services
 genai.configure(api_key=GEMINI_API_KEY)
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# --- 2. MODEL INITIALIZATION ---
-# Using 1.5-flash for a much higher free-tier quota (1500 requests/day)
+# Use Gemini 1.5 Flash
 model = genai.GenerativeModel('gemini-1.5-flash')
 
 # Initialize Flask App
 app = Flask(__name__)
 
-# --- 3. THE MAIN BOT ROUTE ---
+# --- 2. THE MAIN BOT ROUTE ---
 @app.route("/", methods=['GET', 'POST'])
 @app.route("/whatsapp", methods=['GET', 'POST'])
 def whatsapp_bot():
     # Capture the message from WhatsApp
     user_query = request.values.get('Body', '').strip()
     
-    print(f"\n--- New Request Received ---")
-    print(f"User Message: '{user_query}'")
+    print(f"\n--- New Request Received ---", flush=True)
+    print(f"User Message: '{user_query}'", flush=True)
 
-    # Health Check (If you open the Render URL in a browser)
+    # Health Check for Browser
     if not user_query:
         return "Medical AI Server is LIVE and waiting for WhatsApp messages!", 200
 
     try:
         # A. Get Response from Gemini AI
-        print("Consulting Gemini AI...")
-        system_instruction = "You are a professional medical assistant. Provide concise, accurate, and easy-to-understand first-aid advice in English."
+        print("Consulting Gemini AI...", flush=True)
+        system_instruction = "You are a professional medical assistant. Provide concise, accurate first-aid advice in English."
         prompt = f"{system_instruction}\n\nUser Question: {user_query}"
         
         gemini_response = model.generate_content(prompt)
         ai_text = gemini_response.text
-        print(f"AI Response Generated.")
+        print(f"AI Response Generated.", flush=True)
 
         # B. Convert Text to Audio (gTTS)
-        print("Generating Voice Note...")
+        print("Generating Voice Note...", flush=True)
         audio_filename = f"{uuid.uuid4()}.mp3"
         tts = gTTS(text=ai_text, lang='en', slow=False) 
-        #tts.save(audio_filename)
+        tts.save(audio_filename) # RE-ENABLED THIS
 
         # C. Upload to Supabase Storage
-        print("Uploading to Supabase...")
+        print("Uploading to Supabase...", flush=True)
         with open(audio_filename, 'rb') as f:
-           # supabase.storage.from_('medical-voice').upload(
+            supabase.storage.from_('medical-voice').upload(
                 path=audio_filename, 
                 file=f,
                 file_options={
@@ -73,7 +73,7 @@ def whatsapp_bot():
         voice_url = supabase.storage.from_('medical-voice').get_public_url(audio_filename)
 
         # E. Twilio Response Construction
-        #twiml_resp = MessagingResponse()
+        twiml_resp = MessagingResponse() # RE-ENABLED THIS
         
         # Add a timestamp to bypass Twilio media caching
         timestamp = int(time.time())
@@ -85,28 +85,25 @@ def whatsapp_bot():
         # 2. Send the audio file
         twiml_resp.message("").media(final_voice_url)
         
-        print(f"Success! Sending response to Twilio.")
+        print(f"Success! Sending response to Twilio.", flush=True)
         
         # Build the final XML response
         response = make_response(str(twiml_resp))
         response.headers['Content-Type'] = 'text/xml'
         
-        # Clean up the local file after upload to save server space
+        # Clean up the local file after upload
         if os.path.exists(audio_filename):
             os.remove(audio_filename)
             
         return response
 
     except Exception as e:
-        print(f"CRITICAL ERROR: {e}")
-        # Return a friendly error message to the user instead of crashing
+        print(f"CRITICAL ERROR: {str(e)}", flush=True)
         error_resp = MessagingResponse()
-        error_resp.message("I'm sorry, I encountered a technical error. Please try again in a moment.")
+        error_resp.message("I'm sorry, I encountered a technical error. Please try again.")
         return make_response(str(error_resp))
 
-# --- 4. START THE SERVER ---
+# --- 3. START THE SERVER ---
 if __name__ == "__main__":
-    # Render dynamic port logic: uses Render's assigned port or defaults to 5000
     port = int(os.environ.get("PORT", 5000))
-    # host='0.0.0.0' is required for cloud deployment
     app.run(host='0.0.0.0', port=port)
